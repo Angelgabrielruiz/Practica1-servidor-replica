@@ -18,16 +18,17 @@ var lastID = 0
 var lock sync.Mutex
 var waitingClients []chan []Registro
 
-
+// Agregar un nuevo registro
 func agregarRegistro(w http.ResponseWriter, r *http.Request) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	lastID++
-	nuevoRegistro := Registro{ID: lastID, Data: "Nuevo dato"}
+	nuevoRegistro := Registro{ID: lastID, Data: "Refresco"} 
+
 	registros = append(registros, nuevoRegistro)
 
-
+	
 	for _, ch := range waitingClients {
 		ch <- registros
 	}
@@ -72,7 +73,7 @@ func eliminarRegistro(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
+	
 	index := -1
 	for i, reg := range registros {
 		if reg.ID == id {
@@ -89,7 +90,7 @@ func eliminarRegistro(w http.ResponseWriter, r *http.Request) {
 	
 	registros = append(registros[:index], registros[index+1:]...)
 
-
+	
 	for _, ch := range waitingClients {
 		ch <- registros
 	}
