@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -16,6 +17,7 @@ var registros []Registro
 var lastID = 0
 var lock sync.Mutex
 var waitingClients []chan []Registro
+
 
 func agregarRegistro(w http.ResponseWriter, r *http.Request) {
 	lock.Lock()
@@ -35,12 +37,14 @@ func agregarRegistro(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(nuevoRegistro)
 }
 
+
 func obtenerRegistros(w http.ResponseWriter, r *http.Request) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	json.NewEncoder(w).Encode(registros)
 }
+
 
 func longPolling(w http.ResponseWriter, r *http.Request) {
 	ch := make(chan []Registro)
@@ -56,10 +60,50 @@ func longPolling(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+
+func eliminarRegistro(w http.ResponseWriter, r *http.Request) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		http.Error(w, "ID inválido", http.StatusBadRequest)
+		return
+	}
+
+
+	index := -1
+	for i, reg := range registros {
+		if reg.ID == id {
+			index = i
+			break
+		}
+	}
+
+	if index == -1 {
+		http.Error(w, "Registro no encontrado", http.StatusNotFound)
+		return
+	}
+
+	
+	registros = append(registros[:index], registros[index+1:]...)
+
+
+	for _, ch := range waitingClients {
+		ch <- registros
+	}
+	waitingClients = nil
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Registro eliminado"})
+}
+
 func main() {
 	http.HandleFunc("/add", agregarRegistro)
 	http.HandleFunc("/get", obtenerRegistros)
 	http.HandleFunc("/longpoll", longPolling)
+	http.HandleFunc("/delete", eliminarRegistro)
 
 	http.ListenAndServe(":8080", nil)
 }
